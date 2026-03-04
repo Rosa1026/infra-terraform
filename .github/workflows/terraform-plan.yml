@@ -31,12 +31,43 @@ jobs:
       - name: Send Plan to Discord
         if: always()
         run: |
-          PLAN_OUTPUT=$(cat plan.txt | tail -n 100 | sed 's/"/\\"/g')
+          PLAN_FILE="plan.txt"
+
+          # Plan 요약 추출
+          SUMMARY=$(grep "Plan:" $PLAN_FILE)
+
+          ADD=$(echo $SUMMARY | awk '{print $2}')
+          CHANGE=$(echo $SUMMARY | awk '{print $5}')
+          DESTROY=$(echo $SUMMARY | awk '{print $8}')
+
+          # 색상 결정 (Decimal 값 사용)
+          if [ "$DESTROY" != "0" ]; then
+            COLOR=15158332   # 🔴 Red
+          elif [ "$CHANGE" != "0" ]; then
+            COLOR=16776960   # 🟡 Yellow
+          elif [ "$ADD" != "0" ]; then
+            COLOR=3066993    # 🟢 Green
+          else
+            COLOR=9807270    # ⚪ Grey
+          fi
+
+          # plan 출력 일부만 사용 (너무 길면 Discord 제한 걸림)
+          PLAN_OUTPUT=$(tail -n 80 $PLAN_FILE)
 
           jq -n \
-            --arg content "📢 Terraform Plan Result\n\`\`\`\n$PLAN_OUTPUT\n\`\`\`" \
-            '{content: $content}' \
+            --arg summary "$SUMMARY" \
+            --arg plan "$PLAN_OUTPUT" \
+            --argjson color $COLOR \
+            '{
+              embeds: [
+                {
+                  title: "📢 Terraform Plan Result",
+                  description: ("**" + $summary + "**\n```hcl\n" + $plan + "\n```"),
+                  color: $color
+                }
+              ]
+            }' \
           | curl -H "Content-Type: application/json" \
             -X POST \
             -d @- \
-            ${{ secrets.DISCORD_WEBHOOK }}
+            ${{ secrets.DISCORD_WEBHOOK_URL }}
