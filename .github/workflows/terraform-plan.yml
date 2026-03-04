@@ -1,0 +1,36 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color > plan.txt
+
+      - name: Send Plan to Discord
+        run: |
+          PLAN_OUTPUT=$(cat plan.txt | tail -n 100 | sed 's/"/\\"/g')
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d "{\"content\":\"📢 **Terraform Plan Result**\n\`\`\`\n$PLAN_OUTPUT\n\`\`\`\"}" \
+          ${{ secrets.DISCORD_WEBHOOK }}

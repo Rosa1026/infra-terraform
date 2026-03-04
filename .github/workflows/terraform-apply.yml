@@ -1,4 +1,4 @@
-name: Terraform Pipeline
+name: Terraform Apply
 
 on:
   push:
@@ -6,8 +6,11 @@ on:
       - main
 
 jobs:
-  terraform:
+  apply:
     runs-on: ubuntu-latest
+
+    # 🔐 prod 환경 보호 가능
+    environment: prod
 
     steps:
       - name: Checkout
@@ -19,11 +22,5 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan -var-file=environments/dev.tfvars -input=false
-
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file=environments/dev.tfvars
+        run: terraform apply -auto-approve
