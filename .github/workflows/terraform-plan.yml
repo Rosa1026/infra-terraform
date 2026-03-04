@@ -26,11 +26,17 @@ jobs:
         id: plan
         run: |
           terraform plan -no-color > plan.txt
+        continue-on-error: true
 
       - name: Send Plan to Discord
+        if: always()
         run: |
           PLAN_OUTPUT=$(cat plan.txt | tail -n 100 | sed 's/"/\\"/g')
-          curl -H "Content-Type: application/json" \
-          -X POST \
-          -d "{\"content\":\"📢 **Terraform Plan Result**\n\`\`\`\n$PLAN_OUTPUT\n\`\`\`\"}" \
-          ${{ secrets.DISCORD_WEBHOOK }}
+
+          jq -n \
+            --arg content "📢 Terraform Plan Result\n\`\`\`\n$PLAN_OUTPUT\n\`\`\`" \
+            '{content: $content}' \
+          | curl -H "Content-Type: application/json" \
+            -X POST \
+            -d @- \
+            ${{ secrets.DISCORD_WEBHOOK_URL }}
