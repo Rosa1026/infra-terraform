@@ -70,4 +70,4 @@ jobs:
           | curl -H "Content-Type: application/json" \
             -X POST \
             -d @- \
-            ${{ secrets.DISCORD_WEBHOOK_URL }}
+            ${{ secrets.DISCORD_WEBHOOK }}
