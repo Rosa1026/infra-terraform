@@ -28,8 +28,12 @@ jobs:
           terraform plan -no-color > plan.txt
         continue-on-error: true
 
-      - name: Send Plan to Discord
+      - name: Send Plan to Discord (Bot + Buttons)
         if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
         run: |
           PLAN_FILE="plan.txt"
 
@@ -40,23 +44,28 @@ jobs:
           CHANGE=$(echo $SUMMARY | awk '{print $5}')
           DESTROY=$(echo $SUMMARY | awk '{print $8}')
 
-          # 색상 결정 (Decimal 값 사용)
+          # 색상 결정
           if [ "$DESTROY" != "0" ]; then
-            COLOR=15158332   # 🔴 Red
+            COLOR=15158332
           elif [ "$CHANGE" != "0" ]; then
-            COLOR=16776960   # 🟡 Yellow
+            COLOR=16776960
           elif [ "$ADD" != "0" ]; then
-            COLOR=3066993    # 🟢 Green
+            COLOR=3066993
           else
-            COLOR=9807270    # ⚪ Grey
+            COLOR=9807270
           fi
 
-          # plan 출력 일부만 사용 (너무 길면 Discord 제한 걸림)
           PLAN_OUTPUT=$(tail -n 80 $PLAN_FILE)
+
+          # 버튼용 custom_id
+          APPROVE_ID="approve_pr_${PR_NUMBER}"
+          REJECT_ID="reject_pr_${PR_NUMBER}"
 
           jq -n \
             --arg summary "$SUMMARY" \
             --arg plan "$PLAN_OUTPUT" \
+            --arg approve_id "$APPROVE_ID" \
+            --arg reject_id "$REJECT_ID" \
             --argjson color $COLOR \
             '{
               embeds: [
@@ -65,9 +74,28 @@ jobs:
                   description: ("**" + $summary + "**\n```hcl\n" + $plan + "\n```"),
                   color: $color
                 }
+              ],
+              components: [
+                {
+                  type: 1,
+                  components: [
+                    {
+                      type: 2,
+                      label: "Approve",
+                      style: 3,
+                      custom_id: $approve_id
+                    },
+                    {
+                      type: 2,
+                      label: "Reject",
+                      style: 4,
+                      custom_id: $reject_id
+                    }
+                  ]
+                }
               ]
             }' \
-          | curl -H "Content-Type: application/json" \
-            -X POST \
-            -d @- \
-            ${{ secrets.DISCORD_WEBHOOK }}
+          | curl -X POST "https://discord.com/api/v10/channels/$DISCORD_CHANNEL_ID/messages" \
+              -H "Authorization: Bot $DISCORD_BOT_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d @-
